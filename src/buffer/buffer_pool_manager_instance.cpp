@@ -94,7 +94,9 @@ auto BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) -> Page * {
   *page_id = AllocatePage();
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
-  memset(pages_[frame_id].data_, 0, PAGE_SIZE);
+  replacer_->Pin(frame_id);
+  //memset(pages_[frame_id].data_, 0, PAGE_SIZE);
+  pages_[frame_id].ResetMemory();
   return &pages_[frame_id];
 
 }
@@ -114,7 +116,7 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
     frame_id = page_table_.find(page_id)->second;
     replacer_->Pin(frame_id);
     pages_[frame_id].pin_count_++;
-    pages_[frame_id].is_dirty_ = true;
+    //pages_[frame_id].is_dirty_ = true;
     return &pages_[frame_id];
   }
   //If P does not exist
@@ -131,7 +133,7 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   }else return nullptr;
 
   replacer_->Pin(frame_id);
-  pages_[frame_id].pin_count_++;
+  pages_[frame_id].pin_count_ = 1;
   pages_[frame_id].is_dirty_ = false;
   page_table_[page_id] = frame_id;
   pages_[frame_id].page_id_ = page_id;
@@ -156,10 +158,11 @@ auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool {
   //If p exists, but has a non-zero pin-count
   if(pages_[frame_id].pin_count_ != 0) return false;
   //Otherwise
+  pages_[frame_id].ResetMemory();
   page_table_.erase(page_id);
+  replacer_->Pin(frame_id);
   free_list_.push_back(frame_id);
   pages_[frame_id].page_id_ = INVALID_PAGE_ID;
-  memset(pages_[frame_id].data_, 0, PAGE_SIZE);
   pages_[frame_id].is_dirty_ = false;
   return true;
 }
@@ -169,8 +172,10 @@ auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> 
   frame_id_t frame_id;
   if(page_table_.find(page_id) == page_table_.end()) return false;
   frame_id = page_table_.find(page_id)->second;
-  pages_[frame_id].is_dirty_ = is_dirty;
-  if(pages_[frame_id].pin_count_ == 0) return false;
+  //pages_[frame_id].is_dirty_ = is_dirty;
+  if (is_dirty) {
+    pages_[frame_id].is_dirty_ = is_dirty; // 不然会直接把之前的 is_dirty 状态给覆盖了。
+  }
   if(--pages_[frame_id].pin_count_ == 0) {
     replacer_->Unpin(frame_id);
 
