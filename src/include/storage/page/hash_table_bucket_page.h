@@ -137,13 +137,30 @@ class HashTableBucketPage {
    */
   void PrintBucket();
 
+  /**
+   * @param bucket_idx index to lookup
+   * @return <occupied_ or readable_ index, the index of char>
+   */
+  std::pair<int, int> Getlocation(uint32_t bucket_idx) const{
+    auto res = std::pair<int, int> (0, 0);
+    res.first = bucket_idx / 8;
+    res.second = bucket_idx % 8;
+    return res;
+  }
+  /**
+   * @return size of occupied_ and readable_
+   */
+  int GetNumofChars() const { return (BUCKET_ARRAY_SIZE - 1) / 8 + 1;}
+
+
  private:
   //  For more on BUCKET_ARRAY_SIZE see storage/page/hash_table_page_defs.h
   char occupied_[(BUCKET_ARRAY_SIZE - 1) / 8 + 1];
   // 0 if tombstone/brand new (never occupied), 1 otherwise.
   char readable_[(BUCKET_ARRAY_SIZE - 1) / 8 + 1];
+  //在插入的时候occupied_位和readable_位要设为1，删除的时候就只需要把readable_置为0了。
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[0];
 };
 
 }  // namespace bustub
