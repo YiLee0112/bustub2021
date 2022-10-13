@@ -132,9 +132,10 @@ class ExtendibleHashTable {
    * Fetches the a bucket page from the buffer pool manager using the bucket's page_id.
    *
    * @param bucket_page_id the page_id to fetch
-   * @return a pointer to a bucket page
+   * @return a page and a pointer to a bucket page
+   * 返回page主要是用于加锁，提高效率，不去buffer pool中反复查找页面
    */
-  auto FetchBucketPage(page_id_t bucket_page_id) -> HASH_TABLE_BUCKET_TYPE *;
+  std::pair<Page *, HASH_TABLE_BUCKET_TYPE *> FetchBucketPage(page_id_t bucket_page_id);
 
   /**
    * Performs insertion with an optional bucket splitting.
