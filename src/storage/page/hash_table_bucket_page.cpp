@@ -43,7 +43,7 @@ auto HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator 
   if (std::find(exit_values.begin(), exit_values.end(), value) != exit_values.cend()) {
     return false;
   }
-  //找到第一个非空的array存放新的键值对。
+  // 找到第一个非空的array存放新的键值对。
   for (uint32_t i = 0; i < BUCKET_ARRAY_SIZE; i++) {
     if (!IsReadable(i)) {
       array_[i] = MappingType(key, value);
@@ -89,9 +89,9 @@ void HASH_TABLE_BUCKET_TYPE::RemoveAt(uint32_t bucket_idx) {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::IsOccupied(uint32_t bucket_idx) const -> bool {
   auto location = Getlocation(bucket_idx);
-  if((occupied_[location.first] & (1 << location.second)) != 0){
+  if ((occupied_[location.first] & (1 << location.second)) != 0) {
     return true;
-  }else{
+  } else {
     return false;
   }
 }
@@ -106,9 +106,9 @@ void HASH_TABLE_BUCKET_TYPE::SetOccupied(uint32_t bucket_idx) {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::IsReadable(uint32_t bucket_idx) const -> bool {
   auto location = Getlocation(bucket_idx);
-  if((readable_[location.first] & (1 << location.second)) != 0){
+  if ((readable_[location.first] & (1 << location.second)) != 0) {
     return true;
-  }else{
+  } else {
     return false;
   }
 }
@@ -128,10 +128,10 @@ auto HASH_TABLE_BUCKET_TYPE::IsFull() -> bool {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::NumReadable() -> uint32_t {
   uint32_t num_readable = 0;
-  for(auto i = 0; i < GetNumofChars(); i++){
+  for (auto i = 0; i < GetNumofChars(); i++) {
     uint8_t readable = readable_[i];
-    //位运算——二进制中1的个数
-    while(readable != 0){
+    // 位运算——二进制中1的个数
+    while (readable != 0) {
       readable &= (readable - 1);
       num_readable++;
     }

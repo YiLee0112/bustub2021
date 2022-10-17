@@ -28,9 +28,10 @@ void HashTableDirectoryPage::SetLSN(lsn_t lsn) { lsn_ = lsn; }
 auto HashTableDirectoryPage::GetGlobalDepth() -> uint32_t { return global_depth_; }
 
 auto HashTableDirectoryPage::GetGlobalDepthMask() -> uint32_t { return (0x1 << global_depth_) - 1; }
-//它的作用是返回一个掩码，掩码决定了一个Key/Value对会被放入哪个bucket里面。如key的hash值是10，depth为2，则放入1010 & 0011 = 2号桶里面。
+// 它的作用是返回一个掩码，掩码决定了一个Key/Value对会被放入哪个bucket里面。
+// 如key的hash值是10，depth为2，则放入1010 & 0011 = 2号桶里面。
 
-void HashTableDirectoryPage::IncrGlobalDepth() { global_depth_++;}
+void HashTableDirectoryPage::IncrGlobalDepth() { global_depth_++; }
 
 void HashTableDirectoryPage::DecrGlobalDepth() { global_depth_--; }
 
@@ -43,22 +44,32 @@ void HashTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t buck
 auto HashTableDirectoryPage::Size() -> uint32_t { return (0x1 << global_depth_); }
 
 auto HashTableDirectoryPage::CanShrink() -> bool {
-  for(uint32_t i = 0; i < Size(); i++){
-    if(local_depths_[i] == global_depth_)
+  for (uint32_t i = 0; i < Size(); i++) {
+    if (local_depths_[i] == global_depth_)
       return false;
   }
-  return true; }
+  return true;
+}
 
 auto HashTableDirectoryPage::GetLocalDepth(uint32_t bucket_idx) -> uint32_t { return local_depths_[bucket_idx]; }
 
-void HashTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t local_depth) { local_depths_[bucket_idx] = local_depth;}
+void HashTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t local_depth) {
+  local_depths_[bucket_idx] = local_depth;
+}
 
-void HashTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]++;}
+void HashTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]++; }
 
-void HashTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]--;}
+void HashTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]--; }
 
-auto HashTableDirectoryPage::GetLocalHighBit(uint32_t bucket_idx) -> uint32_t { return (0x1 << local_depths_[bucket_idx]); }
+uint32_t HashTableDirectoryPage::GetLocalHighBit(uint32_t bucket_idx)  { return (0x1 << local_depths_[bucket_idx]); }
 
+auto HashTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) -> uint32_t{
+  uint32_t high_bit = (0x1 << local_depths_[bucket_idx - 1]);
+  return bucket_idx ^ high_bit;
+}
+auto HashTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) -> uint32_t{
+  return ((0x1 << local_depths_[bucket_idx]) - 1);
+}
 /**
  * VerifyIntegrity - Use this for debugging but **DO NOT CHANGE**
  *

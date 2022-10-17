@@ -16,9 +16,9 @@ namespace bustub {
 
 ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_t pool_size, DiskManager *disk_manager,
                                                      LogManager *log_manager)
-    : bpmis_{num_instances}, pool_size_(pool_size){
+    : bpmis_{num_instances}, pool_size_(pool_size) {
   // Allocate and create individual BufferPoolManagerInstances
-  for(uint32_t instance_index = 0; instance_index < num_instances; instance_index++){
+  for (uint32_t instance_index = 0; instance_index < num_instances; instance_index++) {
     bpmis_[instance_index] =
         new BufferPoolManagerInstance(pool_size, num_instances, instance_index, disk_manager, log_manager);
   }
@@ -63,9 +63,9 @@ auto ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) -> Page * {
   // starting index and return nullptr
   // 2.   Bump the starting index (mod number of instances) to start search at a different BPMI each time this function
   // is called
-  for (size_t i = 0; i < bpmis_.size(); i++) {
+  for (auto & bpmi : bpmis_) {
     //    BufferPoolManager *manager = *(managers_ + next_instance_);
-    Page *page = bpmis_[i]->NewPage(page_id);
+    Page *page = bpmi->NewPage(page_id);
     last_alloc_index_ = (last_alloc_index_ + 1) % bpmis_.size();
     if (page != nullptr) {
       return page;
@@ -81,7 +81,7 @@ auto ParallelBufferPoolManager::DeletePgImp(page_id_t page_id) -> bool {
 
 void ParallelBufferPoolManager::FlushAllPgsImp() {
   // flush all pages from all BufferPoolManagerInstances
-  for(auto bp : bpmis_){
+  for (auto bp : bpmis_) {
     bp->FlushAllPages();
   }
 }
