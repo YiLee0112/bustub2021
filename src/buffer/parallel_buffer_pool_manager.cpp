@@ -63,7 +63,7 @@ auto ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) -> Page * {
   // starting index and return nullptr
   // 2.   Bump the starting index (mod number of instances) to start search at a different BPMI each time this function
   // is called
-  for (auto & bpmi : bpmis_) {
+  for (auto &bpmi : bpmis_) {
     //    BufferPoolManager *manager = *(managers_ + next_instance_);
     Page *page = bpmi->NewPage(page_id);
     last_alloc_index_ = (last_alloc_index_ + 1) % bpmis_.size();

@@ -117,7 +117,7 @@ auto HASH_TABLE_TYPE::Insert(Transaction *transaction, const KeyType &key, const
     buffer_pool_manager_->UnpinPage(bucket_page_id, false);
     buffer_pool_manager_->UnpinPage(directory_page_id_, false);
     return SplitInsert(transaction, key, value);
-  } else {
+  }
     // 不需要分裂
     bool res = bucket_page_data->Insert(key, value, comparator_);
     bucket_page->WUnlatch();
@@ -125,7 +125,6 @@ auto HASH_TABLE_TYPE::Insert(Transaction *transaction, const KeyType &key, const
     buffer_pool_manager_->UnpinPage(bucket_page_id, res);  // is_dirty根据插入情况而定
     buffer_pool_manager_->UnpinPage(directory_page_id_, false);
     return res;
-  }
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
@@ -286,6 +285,25 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
     page_id_t merged_page_id = dir_page->GetBucketPageId(merged_bucket_idx);
     // HASH_TABLE_BUCKET_TYPE *merged_bucket = FetchBucketPage(merged_page_id);
     if (dir_page->GetLocalDepth(merged_bucket_idx) == local_depth) {
+      // 检查merge page的merge page是否为空.
+      // 如果为空，则先将merge page进行循环merge之后再和当前page进行merge。
+      // 因为第一个merge page肯定不为空
+      dir_page->DecrLocalDepth(merged_bucket_idx);
+      uint32_t merged_depth = dir_page->GetLocalDepth(merged_bucket_idx);
+      uint32_t merge2_bucket_idx = merged_bucket_idx ^ (0x1 << merged_depth);
+      while (dir_page->GetLocalDepth(merged_bucket_idx) == dir_page->GetLocalDepth(merge2_bucket_idx) &&
+             dir_page->GetLocalDepth(merged_bucket_idx) > 0) {
+        page_id_t merge2_bucket_id = dir_page->GetBucketPageId(merge2_bucket_idx);
+        HASH_TABLE_BUCKET_TYPE *merge_bucket = FetchBucketPage(merge2_bucket_id);
+        if (merge_bucket->IsEmpty()) {
+          dir_page->DecrLocalDepth(merged_bucket_idx);
+          merge2_bucket_idx = merge2_bucket_idx ^ (0x1 << (dir_page->GetLocalDepth(merged_bucket_idx)));
+          buffer_pool_manager_->DeletePage(merge2_bucket_id);
+        } else {
+          buffer_pool_manager_->UnpinPage(merge2_bucket_id, false);
+        }
+      }
+
       // if(merged_bucket->IsEmpty()) is_glowing =true;
       /*
       local_depth--;
@@ -300,13 +318,14 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
         idx += step;
       }
        */
-      uint32_t mask = (1 << (local_depth - 1)) - 1;  // merge前的掩码
+      local_depth = dir_page->GetLocalDepth(merged_bucket_idx);
+      uint32_t mask = (1 << (local_depth)) - 1;  // merge前的掩码
       uint32_t old_idx = mask & bucket_idx;
       // uint32_t high_bite = dir_page->GetLocalHighBit(bucket_idx);
       for (uint32_t i = 0; i < dir_page->Size(); i++) {
         if ((i & mask) == old_idx) {
           dir_page->SetBucketPageId(i, merged_page_id);
-          dir_page->DecrLocalDepth(i);
+          dir_page->SetLocalDepth(i, dir_page->GetLocalDepth(merged_bucket_idx));
         }
       }
       buffer_pool_manager_->DeletePage(bucket_page_id);

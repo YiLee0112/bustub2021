@@ -37,7 +37,9 @@ auto HASH_TABLE_BUCKET_TYPE::GetValue(KeyType key, KeyComparator cmp, std::vecto
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator cmp) -> bool {
-  if (IsFull()) return false;
+  if (IsFull()) {
+    return false;
+  }
   std::vector<ValueType> exit_values;
   GetValue(key, cmp, &exit_values);
   if (std::find(exit_values.begin(), exit_values.end(), value) != exit_values.cend()) {
@@ -89,11 +91,7 @@ void HASH_TABLE_BUCKET_TYPE::RemoveAt(uint32_t bucket_idx) {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::IsOccupied(uint32_t bucket_idx) const -> bool {
   auto location = Getlocation(bucket_idx);
-  if ((occupied_[location.first] & (1 << location.second)) != 0) {
-    return true;
-  } else {
-    return false;
-  }
+  return (occupied_[location.first] & (1 << location.second)) != 0;
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
@@ -106,11 +104,7 @@ void HASH_TABLE_BUCKET_TYPE::SetOccupied(uint32_t bucket_idx) {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 auto HASH_TABLE_BUCKET_TYPE::IsReadable(uint32_t bucket_idx) const -> bool {
   auto location = Getlocation(bucket_idx);
-  if ((readable_[location.first] & (1 << location.second)) != 0) {
-    return true;
-  } else {
-    return false;
-  }
+  return (readable_[location.first] & (1 << location.second)) != 0;
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>

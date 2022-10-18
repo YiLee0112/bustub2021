@@ -45,8 +45,9 @@ auto HashTableDirectoryPage::Size() -> uint32_t { return (0x1 << global_depth_);
 
 auto HashTableDirectoryPage::CanShrink() -> bool {
   for (uint32_t i = 0; i < Size(); i++) {
-    if (local_depths_[i] == global_depth_)
+    if (local_depths_[i] == global_depth_) {
       return false;
+    }
   }
   return true;
 }
@@ -61,13 +62,13 @@ void HashTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) { local_depths_
 
 void HashTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]--; }
 
-uint32_t HashTableDirectoryPage::GetLocalHighBit(uint32_t bucket_idx)  { return (0x1 << local_depths_[bucket_idx]); }
+uint32_t HashTableDirectoryPage::GetLocalHighBit(uint32_t bucket_idx) { return (0x1 << local_depths_[bucket_idx]); }
 
-auto HashTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) -> uint32_t{
+auto HashTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) -> uint32_t {
   uint32_t high_bit = (0x1 << local_depths_[bucket_idx - 1]);
   return bucket_idx ^ high_bit;
 }
-auto HashTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) -> uint32_t{
+auto HashTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) -> uint32_t {
   return ((0x1 << local_depths_[bucket_idx]) - 1);
 }
 /**

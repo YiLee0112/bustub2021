@@ -54,7 +54,9 @@ auto BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) -> bool {
   // Make sure you call DiskManager::WritePage!
   std::lock_guard<std::mutex> lock(latch_);
   auto it = page_table_.find(page_id);
-  if (it == page_table_.end()) return false;
+  if (it == page_table_.end()) {
+    return false;
+  }
   auto frame_id = it->second;
   disk_manager_->WritePage(page_id, pages_[frame_id].GetData());
   pages_[frame_id].is_dirty_ = false;
@@ -152,10 +154,14 @@ auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool {
   DeallocatePage(page_id);
   frame_id_t frame_id;
   // If p does not exist
-  if (page_table_.find(page_id) == page_table_.end()) return true;
+  if (page_table_.find(page_id) == page_table_.end()) {
+    return true;
+  }
   frame_id = page_table_.find(page_id)->second;
   // If p exists, but has a non-zero pin-count
-  if (pages_[frame_id].pin_count_ != 0) return false;
+  if (pages_[frame_id].pin_count_ != 0) {
+    return false;
+  }
   // Otherwise
   pages_[frame_id].ResetMemory();
   page_table_.erase(page_id);
@@ -169,7 +175,9 @@ auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool {
 auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool {
   std::lock_guard<std::mutex> lock(latch_);
   frame_id_t frame_id;
-  if (page_table_.find(page_id) == page_table_.end()) return false;
+  if (page_table_.find(page_id) == page_table_.end()) {
+    return false;
+  }
   frame_id = page_table_.find(page_id)->second;
   // pages_[frame_id].is_dirty_ = is_dirty;
   if (is_dirty) {
