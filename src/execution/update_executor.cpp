@@ -17,11 +17,40 @@ namespace bustub {
 
 UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(child_executor.release()) {
+  table_oid_t oid = plan->TableOid();
+  auto catalog = exec_ctx->GetCatalog();
+  table_info_ = catalog->GetTable(oid);
+  indexes_ = catalog->GetTableIndexes(table_info_->name_);
+}
 
-void UpdateExecutor::Init() {}
+void UpdateExecutor::Init() { child_executor_->Init(); }
 
-auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool { return false; }
+auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
+  // 旧的tuple
+  Tuple tuple_old_;
+  auto *txn_ = GetExecutorContext()->GetTransaction();
+  while (child_executor_->Next(&tuple_old_, rid)) {
+    /** 子节点每次返回一个tuple，所以每次将返回的结果更新 */
+    *tuple = GenerateUpdatedTuple(tuple_old_);
+    if (table_info_->table_->UpdateTuple(*tuple, *rid, txn_)) {
+      // 若插入表成功，则插入索引
+      for (auto index : indexes_) {
+        /** 使用DeleteEntry删除表中的旧索引 */
+        index->index_->DeleteEntry(
+            /** 注意:构造时使用的schema是子节点的outputschema */
+            tuple_old_.KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs()),
+            *rid, txn_);
+        /** 使用InsertEntry插入表中的新索引 */
+        index->index_->InsertEntry(
+            tuple->KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs()),
+            *rid, txn_);
+
+      }
+    }
+  }
+  return false;
+}
 
 auto UpdateExecutor::GenerateUpdatedTuple(const Tuple &src_tuple) -> Tuple {
   const auto &update_attrs = plan_->GetUpdateAttr();
