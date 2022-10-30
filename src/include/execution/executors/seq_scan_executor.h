@@ -17,6 +17,7 @@
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
+#include "storage/table/table_iterator.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -42,16 +43,18 @@ class SeqScanExecutor : public AbstractExecutor {
    * @param[out] rid The next tuple RID produced by the scan
    * @return `true` if a tuple was produced, `false` if there are no more tuples
    */
-  auto Next(Tuple *tuple, RID *rid) -> bool override;
+  bool Next(Tuple *tuple, RID *rid) override;
 
   /** @return The output schema for the sequential scan */
-  auto GetOutputSchema() -> const Schema * override { return plan_->OutputSchema(); }
+  const Schema *GetOutputSchema() override { return plan_->OutputSchema(); }
 
  private:
   /** The sequential scan plan node to be executed */
   const SeqScanPlanNode *plan_;
+
   TableInfo *table_info_;
-  TableIterator iterator_;
+
+  TableIterator cur_;
   TableIterator end_;
 };
 }  // namespace bustub

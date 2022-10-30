@@ -11,44 +11,43 @@
 //===----------------------------------------------------------------------===//
 
 #include "execution/executors/seq_scan_executor.h"
+#include "concurrency/transaction.h"
 
 namespace bustub {
 
 SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan)
     : AbstractExecutor(exec_ctx),
       plan_(plan),
-      iterator_(nullptr, RID(INVALID_PAGE_ID, 0), nullptr),
-      end_(nullptr, RID(INVALID_PAGE_ID, 0), nullptr) {
-  table_oid_t oid = plan->GetTableOid();
-  table_info_ = exec_ctx->GetCatalog()->GetTable(oid);
-  iterator_ = table_info_->table_->Begin(exec_ctx->GetTransaction());
-  end_ = table_info_->table_->End();
-}
+      cur_(nullptr, RID(INVALID_PAGE_ID, 0), nullptr),
+      end_(nullptr, RID(INVALID_PAGE_ID, 0), nullptr) {}
 
 void SeqScanExecutor::Init() {
-  iterator_ = table_info_->table_->Begin(exec_ctx_->GetTransaction());
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
+
+  cur_ = table_info_->table_->Begin(exec_ctx_->GetTransaction());
   end_ = table_info_->table_->End();
 }
 
-auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-  const Schema *out_schema = GetOutputSchema();
-  // 输出schema
-  Schema table_schema_ = table_info_->schema_;
-  // 当前table的schema
-  while (iterator_ != end_) {
-  Tuple table_tuple_ = *iterator_;
-  std::vector<Value> values_;
-  for (const auto &col : GetOutputSchema()->GetColumns()) {
-    values_.emplace_back(col.GetExpr()->Evaluate(&table_tuple_, &table_schema_));
+bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
+  while (cur_ != end_) {
+    *rid = cur_->GetRid();
+
+    *tuple = *cur_++;
+
+    if ((plan_->GetPredicate() == nullptr) ||
+        plan_->GetPredicate()->Evaluate(tuple, plan_->OutputSchema()).GetAs<bool>()) {
+      /* we must return tuple with output schema instead of table schema */
+      std::vector<Value> values;
+      for (auto &output_column : plan_->OutputSchema()->GetColumns()) {
+        values.push_back(output_column.GetExpr()->Evaluate(tuple, &table_info_->schema_));
+      }
+
+      *tuple = Tuple(values, plan_->OutputSchema());
+
+      return true;
+    }
   }
-  *tuple = Tuple(values_, out_schema);
-  auto predict = plan_->GetPredicate();
-  if (predict == nullptr || predict->Evaluate(tuple, out_schema).GetAs<bool>()) {
-    iterator_++;
-    return true;
-  }
-  iterator_++;
-  }
+
   return false;
 }
 

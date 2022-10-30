@@ -27,25 +27,18 @@ UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *
 void UpdateExecutor::Init() { child_executor_->Init(); }
 
 auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
-  // 旧的tuple
-  Tuple tuple_old_;
-  auto *txn_ = GetExecutorContext()->GetTransaction();
-  while (child_executor_->Next(&tuple_old_, rid)) {
-    /** 子节点每次返回一个tuple，所以每次将返回的结果更新 */
-    *tuple = GenerateUpdatedTuple(tuple_old_);
-    if (table_info_->table_->UpdateTuple(*tuple, *rid, txn_)) {
-      // 若插入表成功，则插入索引
+  Tuple tuple_old;
+  auto *txn = GetExecutorContext()->GetTransaction();
+  while (child_executor_->Next(&tuple_old, rid)) {
+    *tuple = GenerateUpdatedTuple(tuple_old);
+    if (table_info_->table_->UpdateTuple(*tuple, *rid, txn)) {
       for (auto index : indexes_) {
-        /** 使用DeleteEntry删除表中的旧索引 */
-        index->index_->DeleteEntry(
-            /** 注意:构造时使用的schema是子节点的outputschema */
-            tuple_old_.KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs()),
-            *rid, txn_);
-        /** 使用InsertEntry插入表中的新索引 */
+        index->index_->DeleteEntry(tuple_old.KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_,
+                                                          index->index_->GetKeyAttrs()),
+                                   *rid, txn);
         index->index_->InsertEntry(
             tuple->KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs()),
-            *rid, txn_);
-
+            *rid, txn);
       }
     }
   }

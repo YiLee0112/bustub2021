@@ -17,6 +17,6 @@ IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanP
 
 void IndexScanExecutor::Init() {}
 
-auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool { return false; }
+bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) { return false; }
 
 }  // namespace bustub

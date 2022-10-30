@@ -12,70 +12,61 @@
 
 #include <memory>
 
+#include "concurrency/transaction.h"
 #include "execution/executors/insert_executor.h"
 
 namespace bustub {
 
 InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(child_executor.release()) {
-  table_oid_t oid = plan->TableOid();
-  table_info_ = exec_ctx->GetCatalog()->GetTable(oid);
-  from_insert_ = plan->IsRawInsert();
-  if (from_insert_) {
-    size_ = plan->RawValues().size();
-  }
-  indexes_ = exec_ctx->GetCatalog()->GetTableIndexes(table_info_->name_);
-}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
 void InsertExecutor::Init() {
-  /** 如果插入来源是子节点则初始化子节点 */
-  if (!from_insert_) {
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
+  indexes_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
+
+  if (plan_->IsRawInsert()) {
+    total_size_ = plan_->RawValues().size();
+    cur_size_ = 0;
+  } else {
     child_executor_->Init();
+    assert(table_info_->schema_.GetColumnCount() == child_executor_->GetOutputSchema()->GetColumnCount());
   }
 }
 
-auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
-  Tuple tuple_;
-  RID rid_;
-  Transaction *txn_ = exec_ctx_->GetTransaction();
-  // 如果插入来源是输入
-  if (from_insert_) {
-    /** 逐行插入 */
-    for (uint32_t idx = 0; idx < size_; idx++) {
-      std::vector<Value> value_ = plan_->RawValuesAt(idx);
-      tuple_ = Tuple(value_, &table_info_->schema_);
-      // 利用当前表的schema进行插入tuple的构造
-      if (table_info_->table_->InsertTuple(tuple_, &rid_, txn_)) {
-        // 若插入表成功，则插入索引
-        for (auto index : indexes_) {
-          // 使用InsertEntry更新表中的所有索引，InsertEntry的参数应由KeyFromTuple方法构造
-          index->index_->InsertEntry(
-              tuple_.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
-                                         rid_, txn_);
+bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
+  Transaction *txn = exec_ctx_->GetTransaction();
+  const Schema *tuple_schema;
 
-        }
+  if (plan_->IsRawInsert()) {
+    do {
+      if (cur_size_ == total_size_) {
+        return false;
       }
-    }
-    // Insert节点不应向外输出任何元组，所以其总是返回假
-    return false;
-  }
-  // 如果插入的来源是子节点（扫描节点）
-  while (child_executor_->Next(&tuple_, &rid_)) {
-    /** 子节点每次返回一个tuple，所以每次将返回的结果插入 */
-    if (table_info_->table_->InsertTuple(tuple_, &rid_, txn_)) {
-      // 若插入表成功，则插入索引
-      for (auto index : indexes_) {
-        // 使用InsertEntry更新表中的所有索引，InsertEntry的参数应由KeyFromTuple方法构造
-        index->index_->InsertEntry(
-            /** 注意:构造时使用的schema是子节点的outputschema */
-            tuple_.KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs()),
-            rid_, txn_);
+      *tuple = Tuple(plan_->RawValuesAt(cur_size_++), &table_info_->schema_);
+    } while (!table_info_->table_->InsertTuple(*tuple, rid, txn));
 
+    tuple_schema = &table_info_->schema_;
+  } else {
+    /* select insert */
+    if (child_executor_->Next(tuple, rid)) {
+      if (!table_info_->table_->InsertTuple(*tuple, rid, txn)) {
+        return false;
       }
+    } else {
+      return false;
     }
+
+    tuple_schema = child_executor_->GetOutputSchema();
   }
-  return false;
+
+  /* insert successfully, update index */
+  for (auto &index_info : indexes_) {
+   index_info->index_->InsertEntry(
+        tuple->KeyFromTuple(*tuple_schema, index_info->key_schema_, index_info->index_->GetKeyAttrs()), *rid, txn);
+  }
+
+  return true;
 }
 
 }  // namespace bustub

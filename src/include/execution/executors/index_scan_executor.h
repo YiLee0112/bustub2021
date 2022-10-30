@@ -35,11 +35,11 @@ class IndexScanExecutor : public AbstractExecutor {
    */
   IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanPlanNode *plan);
 
-  auto GetOutputSchema() -> const Schema * override { return plan_->OutputSchema(); };
+  const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
   void Init() override;
 
-  auto Next(Tuple *tuple, RID *rid) -> bool override;
+  bool Next(Tuple *tuple, RID *rid) override;
 
  private:
   /** The index scan plan node to be executed. */

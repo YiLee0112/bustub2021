@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
@@ -47,14 +48,27 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
    * @param[out] rid The next tuple RID produced by the join
    * @return `true` if a tuple was produced, `false` if there are no more tuples
    */
-  auto Next(Tuple *tuple, RID *rid) -> bool override;
+  bool Next(Tuple *tuple, RID *rid) override;
 
   /** @return The output schema for the insert */
-  auto GetOutputSchema() -> const Schema * override { return plan_->OutputSchema(); };
+  const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
  private:
   /** The NestedLoopJoin plan node to be executed. */
   const NestedLoopJoinPlanNode *plan_;
+
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  std::unique_ptr<AbstractExecutor> right_executor_;
+
+  Tuple cur_left_;
+  bool is_dummy_left_;
+
+  /* output schema column cnt */
+  uint32_t column_cnt_;
+
+  /* determine whether output column come from left or right */
+  /* It's not graceful, maybe better approach? */
+  std::vector<uint32_t> left_or_right_;
 };
 
 }  // namespace bustub
