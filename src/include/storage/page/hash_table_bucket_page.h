@@ -157,7 +157,7 @@ class HashTableBucketPage {
   char occupied_[(BUCKET_ARRAY_SIZE - 1) / 8 + 1];
   // 0 if tombstone/brand new (never occupied), 1 otherwise.
   char readable_[(BUCKET_ARRAY_SIZE - 1) / 8 + 1];
-  // 在插入的时候occupied_位和readable_位要设为1，删除的时候就只需要把readable_置为0了。
+  // Set occupied_and readable_as 1 when inserting, and only set readable_as 0 when delete。
   // Flexible array member for page data.
   MappingType array_[0];
 };

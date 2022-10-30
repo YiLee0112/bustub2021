@@ -12,61 +12,56 @@
 
 #include <memory>
 
-#include "concurrency/transaction.h"
 #include "execution/executors/insert_executor.h"
 
 namespace bustub {
 
 InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(child_executor.release()) {
+  table_oid_t oid = plan->TableOid();
+  table_info_ = exec_ctx->GetCatalog()->GetTable(oid);
+  from_insert_ = plan->IsRawInsert();
+  if (from_insert_) {
+    size_ = plan->RawValues().size();
+  }
+  indexes_ = exec_ctx->GetCatalog()->GetTableIndexes(table_info_->name_);
+}
 
 void InsertExecutor::Init() {
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
-  indexes_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
-
-  if (plan_->IsRawInsert()) {
-    total_size_ = plan_->RawValues().size();
-    cur_size_ = 0;
-  } else {
+  if (!from_insert_) {
     child_executor_->Init();
-    assert(table_info_->schema_.GetColumnCount() == child_executor_->GetOutputSchema()->GetColumnCount());
   }
 }
 
-bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
+auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
+  Tuple tuple_insert;
+  RID rid_insert;
   Transaction *txn = exec_ctx_->GetTransaction();
-  const Schema *tuple_schema;
-
-  if (plan_->IsRawInsert()) {
-    do {
-      if (cur_size_ == total_size_) {
-        return false;
+  if (from_insert_) {
+    for (uint32_t idx = 0; idx < size_; idx++) {
+      std::vector<Value> value = plan_->RawValuesAt(idx);
+      tuple_insert = Tuple(value, &table_info_->schema_);
+      if (table_info_->table_->InsertTuple(tuple_insert, &rid_insert, txn)) {
+        for (auto index : indexes_) {
+          index->index_->InsertEntry(
+              tuple_insert.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
+              rid_insert, txn);
+        }
       }
-      *tuple = Tuple(plan_->RawValuesAt(cur_size_++), &table_info_->schema_);
-    } while (!table_info_->table_->InsertTuple(*tuple, rid, txn));
-
-    tuple_schema = &table_info_->schema_;
-  } else {
-    /* select insert */
-    if (child_executor_->Next(tuple, rid)) {
-      if (!table_info_->table_->InsertTuple(*tuple, rid, txn)) {
-        return false;
-      }
-    } else {
-      return false;
     }
-
-    tuple_schema = child_executor_->GetOutputSchema();
+    return false;
   }
-
-  /* insert successfully, update index */
-  for (auto &index_info : indexes_) {
-   index_info->index_->InsertEntry(
-        tuple->KeyFromTuple(*tuple_schema, index_info->key_schema_, index_info->index_->GetKeyAttrs()), *rid, txn);
+  while (child_executor_->Next(&tuple_insert, &rid_insert)) {
+    if (table_info_->table_->InsertTuple(tuple_insert, &rid_insert, txn)) {
+      for (auto index : indexes_) {
+        index->index_->InsertEntry(tuple_insert.KeyFromTuple(*child_executor_->GetOutputSchema(), index->key_schema_,
+                                                             index->index_->GetKeyAttrs()),
+                                   rid_insert, txn);
+      }
+    }
   }
-
-  return true;
+  return false;
 }
 
 }  // namespace bustub
